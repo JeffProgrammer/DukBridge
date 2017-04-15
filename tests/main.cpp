@@ -24,6 +24,7 @@
 
 #include <cstdio>
 #include <vector>
+#include <string>
 #include <duktape.h>
 
 const char * script =
@@ -42,14 +43,23 @@ const char * script =
 "}\n"
 "\n"
 "var animal = new Animal();\n"
+"print('Animal name: ' + animal.name);\n"
+"animal.name = 'Billy';\n"
+"print('Animal name should be Billy: ' + animal.name);\n"
 "print('Animal: ' + JSON.stringify(animal));\n"
 "for (var i = 0; i < 5; i++) {\n"
 "   animal.speak();\n"
 "}\n"
 "\n"
 "var dog = new Dog();\n"
+"dog.bananas = true;\n"
 "print('Dog: ' + JSON.stringify(dog));\n"
 "dog.speakDog();\n"
+"print('Dog name: ' + dog.name);\n"
+"print('Going to loop through properties of dog:');\n"
+"for (var key in dog) {\n"
+"   print('Key: ' + key + ' Val: ' + dog[key]);\n"
+"}\n"
 "dog.speak();\n";
 
 duk_context *ctx = nullptr;
@@ -68,6 +78,8 @@ public:
 	}
 
 	void *dukPtr;
+
+	std::string mName;
 };
 
 class Dog : public Animal {
@@ -160,6 +172,43 @@ static duk_ret_t Dog_speakDog(duk_context *ctx) {
 	return 0;
 }
 
+static duk_ret_t Animal_prop_name_get(duk_context *ctx) {
+	duk_push_this(ctx);
+
+	// get C++ object
+	duk_get_prop_string(ctx, -1, "__ptr");
+	void *ptr = duk_require_pointer(ctx, -1);
+
+	// Return
+	duk_push_string(ctx, static_cast<Animal*>(ptr)->mName.c_str());
+	return 1;
+
+	/*
+	duk_push_current_function(ctx);
+	duk_get_prop_string(ctx, -1, "name");
+	const char *name = duk_require_string(ctx, -1);
+
+	// Store
+	static_cast<Animal*>(ptr)->mName = std::string(name);
+	*/
+}
+
+static duk_ret_t Animal_prop_name_set(duk_context *ctx) {
+	// get value that is being set
+	const char *setString = duk_require_string(ctx, -1);
+
+	duk_push_this(ctx);
+
+	// get c++ object
+	duk_get_prop_string(ctx, -1, "__ptr");
+	void *ptr = duk_require_pointer(ctx, -1);
+
+	// set value
+	static_cast<Animal*>(ptr)->mName = setString;
+	return 0;
+}
+
+
 void viewStack(duk_context *ctx) {
 	// duk_to_string modifies the stack, so we have to duplicate the current
 	// value that we are inspecting to the top of the stack by pushing it,
@@ -210,6 +259,22 @@ int main(int argc, const char **argv) {
 	{
 		duk_push_c_function(ctx, Animal_speak, 0); // [ ... global_object AnimalCSTR PrototypeObj Animal_SpeakFN ]
 		duk_put_prop_string(ctx, -2, "speak");     // [ ... global_object AnimalCSTR PrototypeObj ]
+	}
+
+	// Bind properties to the prototype
+	{
+		duk_push_string(ctx, "name"); // prop
+		duk_push_c_function(ctx, Animal_prop_name_get, 0);
+		duk_push_c_function(ctx, Animal_prop_name_set, 1);
+		viewStack(ctx);
+		duk_def_prop(
+			ctx, 
+			-4, 
+			DUK_DEFPROP_HAVE_GETTER |
+			DUK_DEFPROP_HAVE_SETTER |
+			DUK_DEFPROP_HAVE_CONFIGURABLE | DUK_DEFPROP_CONFIGURABLE |
+			DUK_DEFPROP_HAVE_ENUMERABLE | DUK_DEFPROP_ENUMERABLE
+		);
 	}
 
 	// Bind prototype property and the name of the prototype to use with new stmts.
