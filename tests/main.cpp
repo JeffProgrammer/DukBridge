@@ -196,63 +196,43 @@ int main(int argc, const char **argv) {
 
 	
 	duk_push_global_object(ctx);// Stack: [ ... global_object ]
-	viewStack(ctx);
 	duk_push_c_function(ctx, script_print, DUK_VARARGS); // [ ... global_object script_print_fn ]
-	viewStack(ctx);
 	duk_put_prop_string(ctx, -2, "print"); // [ ... global_object ]
-	viewStack(ctx);
 
 	/// { 
 	/// Initialize Animal Prototype 
 
 	// Bind the prototype constructor and object.
 	duk_push_c_function(ctx, Animal_New, 0); // [ ... global_object AnimalCSTR ]
-	viewStack(ctx);
-	duk_push_object(ctx); // [ ... global_object AnimalCSTR PrototypeObj ]
-	viewStack(ctx);
+	duk_push_object(ctx);                    // [ ... global_object AnimalCSTR PrototypeObj ]
 
 	// Bind methods to the prototype
 	{
-		duk_push_c_function(ctx, Animal_speak, 0);
-		viewStack(ctx);
-		duk_put_prop_string(ctx, -2, "speak");
-		viewStack(ctx);
+		duk_push_c_function(ctx, Animal_speak, 0); // [ ... global_object AnimalCSTR PrototypeObj Animal_SpeakFN ]
+		duk_put_prop_string(ctx, -2, "speak");     // [ ... global_object AnimalCSTR PrototypeObj ]
 	}
 
 	// Bind prototype property and the name of the prototype to use with new stmts.
 	duk_put_prop_string(ctx, -2, "prototype"); // [ ... global_object AnimalCSTR ]
-	viewStack(ctx);
-	duk_put_global_string(ctx, "Animal"); // [ ... global_object ]
-	viewStack(ctx);
+	duk_put_global_string(ctx, "Animal");      // [ ... global_object ]
 
 	/// }
 
 	/// {
 	/// Initialize Dog Prototype
 
-	duk_push_c_function(ctx, Dog_New, 0);
-	viewStack(ctx);
-	duk_get_global_string(ctx, "Animal");
-	viewStack(ctx);
-	duk_new(ctx, 0);
-	viewStack(ctx);
+	duk_push_c_function(ctx, Dog_New, 0); // [ ... global_object DogCSTR ]
+	duk_get_global_string(ctx, "Animal"); // [ ... global_object DogCSTR Animal ]
+	duk_new(ctx, 0);                      // [ ... global_object DogCSTR DogPrototype ]
 
 	// Bind dog methods
 	{
-		duk_push_c_function(ctx, Dog_speakDog, 0);
-		viewStack(ctx);
-		duk_put_prop_string(ctx, -2, "speakDog");
-		viewStack(ctx);
+		duk_push_c_function(ctx, Dog_speakDog, 0); // [ ... global_object DogCSTR DogPrototype Dog_speakDogFn ]
+		duk_put_prop_string(ctx, -2, "speakDog");  // [ ... global_object DogCSTR DogPrototype ]
 	}
 
-	duk_put_prop_string(ctx, -2, "prototype");
-	viewStack(ctx);
-	duk_put_global_string(ctx, "Dog");
-	viewStack(ctx);
-
-
-
-	//duk_eval_string_noresult(ctx, "Dog.prototype = new Animal();");
+	duk_put_prop_string(ctx, -2, "prototype"); // [ ... global_object DogCSTR ]
+	duk_put_global_string(ctx, "Dog");         // [ ... global_object ]
 
 	/// }
 
