@@ -42,9 +42,15 @@ const char * script =
 "}\n"
 "\n"
 "var animal = new Animal();\n"
+"print('Animal: ' + JSON.stringify(animal));\n"
 "for (var i = 0; i < 5; i++) {\n"
 "   animal.speak();\n"
-"}\n";
+"}\n"
+"\n"
+"var dog = new Dog();\n"
+"print('Dog: ' + JSON.stringify(dog));\n"
+"dog.speakDog();\n"
+"dog.speak();\n";
 
 duk_context *ctx = nullptr;
 
@@ -63,6 +69,18 @@ public:
 
 	void *dukPtr;
 };
+
+class Dog : public Animal {
+public:
+	Dog() {
+
+	}
+
+	void speakDog() {
+		printf("DOG!\n");
+	}
+};
+
 std::vector<Animal*> gAnimals;
 
 static duk_ret_t Animal_New(duk_context *ctx) {
@@ -109,6 +127,39 @@ static void firePrototypeCb_Animal(Animal *animal) {
 	duk_pop(ctx); // [ ... ]
 }
 
+static duk_ret_t Dog_New(duk_context *ctx) {
+	if (!duk_is_constructor_call(ctx))
+		return DUK_RET_TYPE_ERROR;
+
+	// Stack: []
+
+	Dog *ptr = new Dog();
+	gAnimals.push_back(ptr);
+
+	duk_push_this(ctx); // [ this ] 
+	ptr->dukPtr = duk_get_heapptr(ctx, -1); // [ this ]
+
+	// Bind the native pointer to the js pointer.
+	duk_push_string(ctx, "__ptr"); // [ this "__ptr" ]
+	duk_push_pointer(ctx, ptr); // [ this "__ptr" 0xPTR ]
+	duk_put_prop(ctx, -3); // [ this ]
+
+	return 0;
+}
+
+static duk_ret_t Dog_speakDog(duk_context *ctx) {
+	// Get the object we are modifiying, or the thisptr
+	duk_push_this(ctx);
+
+	// Get the native pointer handle.
+	duk_get_prop_string(ctx, -1, "__ptr");
+	void *ptr = duk_get_pointer(ctx, -1);
+
+	// Call speak
+	static_cast<Dog*>(ptr)->speakDog();
+	return 0;
+}
+
 void viewStack(duk_context *ctx) {
 	// duk_to_string modifies the stack, so we have to duplicate the current
 	// value that we are inspecting to the top of the stack by pushing it,
@@ -119,10 +170,12 @@ void viewStack(duk_context *ctx) {
 	int count = duk_get_top_index(ctx);
 	for (int i = count; i > -1; i--) {
 		duk_dup(ctx, i);
-		if (duk_is_object(ctx, count + 1))
-			printf("%s\n", duk_json_encode(ctx, count + 1));
-		else
+		if (duk_is_function(ctx, count + 1))
 			printf("%s\n", duk_to_string(ctx, count + 1));
+		else if (duk_is_string(ctx, count + 1) || duk_is_number(ctx, count + 1))
+			printf("%s\n", duk_to_string(ctx, count + 1));
+		else
+			printf("%s\n", duk_json_encode(ctx, count + 1));
 		duk_pop(ctx);
 	}
 	printf("---- end Stack ----\n");
@@ -143,29 +196,74 @@ int main(int argc, const char **argv) {
 
 	
 	duk_push_global_object(ctx);// Stack: [ ... global_object ]
+	viewStack(ctx);
 	duk_push_c_function(ctx, script_print, DUK_VARARGS); // [ ... global_object script_print_fn ]
+	viewStack(ctx);
 	duk_put_prop_string(ctx, -2, "print"); // [ ... global_object ]
+	viewStack(ctx);
 
 	/// { 
 	/// Initialize Animal Prototype 
 
 	// Bind the prototype constructor and object.
 	duk_push_c_function(ctx, Animal_New, 0); // [ ... global_object AnimalCSTR ]
+	viewStack(ctx);
 	duk_push_object(ctx); // [ ... global_object AnimalCSTR PrototypeObj ]
+	viewStack(ctx);
 
 	// Bind methods to the prototype
 	{
 		duk_push_c_function(ctx, Animal_speak, 0);
+		viewStack(ctx);
 		duk_put_prop_string(ctx, -2, "speak");
+		viewStack(ctx);
 	}
 
 	// Bind prototype property and the name of the prototype to use with new stmts.
 	duk_put_prop_string(ctx, -2, "prototype"); // [ ... global_object AnimalCSTR ]
+	viewStack(ctx);
 	duk_put_global_string(ctx, "Animal"); // [ ... global_object ]
+	viewStack(ctx);
 
 	/// }
 
-	duk_eval_string_noresult(ctx, script); // [ ... global_object ]
+	/// {
+	/// Initialize Dog Prototype
+
+	duk_push_c_function(ctx, Dog_New, 0);
+	viewStack(ctx);
+	duk_get_global_string(ctx, "Animal");
+	viewStack(ctx);
+	duk_new(ctx, 0);
+	viewStack(ctx);
+
+	// Bind dog methods
+	{
+		duk_push_c_function(ctx, Dog_speakDog, 0);
+		viewStack(ctx);
+		duk_put_prop_string(ctx, -2, "speakDog");
+		viewStack(ctx);
+	}
+
+	duk_put_prop_string(ctx, -2, "prototype");
+	viewStack(ctx);
+	duk_put_global_string(ctx, "Dog");
+	viewStack(ctx);
+
+
+
+	//duk_eval_string_noresult(ctx, "Dog.prototype = new Animal();");
+
+	/// }
+
+	if (duk_peval_string(ctx, script) != 0) { // [ ... global_object result ]
+		printf("Script pEval Failure: %s\n", duk_safe_to_string(ctx, -1));
+#ifdef _WIN32
+		system("pause");
+#endif
+		exit(1);
+	}
+	duk_pop(ctx); // [ ... global_object ]
 	duk_get_prop_string(ctx, -1, "main");  // [ ... global_object main_fn ]
 	if (duk_pcall(ctx, 0) != 0) { // [ ... global_object return_value ]
 		printf("Error: %s\n", duk_safe_to_string(ctx, -1)); // [ ... global_object return_value ]
