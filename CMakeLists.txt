@@ -21,4 +21,4 @@ include_directories(
 # Tests
 
 add_executable(DukBridgeTest tests/main.cpp)
-target_link_libraries(DukBridge dukbridge)
+target_link_libraries(DukBridgeTest dukbridge)

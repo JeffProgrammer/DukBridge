@@ -119,7 +119,10 @@ void viewStack(duk_context *ctx) {
 	int count = duk_get_top_index(ctx);
 	for (int i = count; i > -1; i--) {
 		duk_dup(ctx, i);
-		printf("%s\n", duk_to_string(ctx, count + 1));
+		if (duk_is_object(ctx, count + 1))
+			printf("%s\n", duk_json_encode(ctx, count + 1));
+		else
+			printf("%s\n", duk_to_string(ctx, count + 1));
 		duk_pop(ctx);
 	}
 	printf("---- end Stack ----\n");

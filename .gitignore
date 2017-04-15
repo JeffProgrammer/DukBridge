@@ -1,0 +1,4 @@
+build/
+dukbridge.dir/
+duktape.dir/
+Win32/
